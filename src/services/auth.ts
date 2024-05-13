@@ -14,6 +14,12 @@ interface IRefresh extends IRequest {
   currentRefreshToken: string;
 }
 
+interface IPayload {
+  id: number;
+  role: string;
+  username: string;
+}
+
 export const signup = async (user: IUserSignup) => {
   const { username, password, fingerprint } = user;
 
@@ -53,7 +59,7 @@ export const login = async (user: IUserSignup) => {
   const isPasswordValid = await bcrypt.compare(password, userFound.password_hash);
   if (!isPasswordValid) throw new Error("Invalid username or password");
 
-  const payload = { id: userFound.id, role: userFound.role, username: userFound.username };
+  const payload: IPayload = { id: userFound.id, role: userFound.role, username: userFound.username };
 
   const accessToken = await TokenUtils.generateAccessToken(payload);
   const refreshToken = await TokenUtils.generateRefreshToken(payload);
@@ -66,4 +72,45 @@ export const logout = async (refreshToken: string) => {
   await TokenService.deleteRefreshSession(refreshToken);
 };
 
-export const refresh = async ({ currentRefreshToken, fingerprint }: IRefresh) => {};
+export const refresh = async ({ currentRefreshToken, fingerprint }: IRefresh) => {
+  if (!currentRefreshToken) {
+    throw new Error("unauthorized");
+  }
+
+  const refreshSession = await TokenService.getRefreshSession(currentRefreshToken);
+
+  if (!refreshSession) {
+    throw new Error("unauthorized");
+  }
+
+  if (refreshSession.fingerprint !== fingerprint?.hash) {
+    throw new Error("forbidden");
+  }
+
+  await TokenService.deleteRefreshSession(currentRefreshToken);
+
+  let payload: IPayload;
+  try {
+    payload = await TokenService.verifyRefreshToken(currentRefreshToken) as IPayload;
+  } catch (error) {
+    throw new Error("forbidden");
+  }
+
+  const user = await db.user.findUnique({
+    where: {
+      username: payload.username,
+    },
+  });
+
+  if (!user) {
+    throw new Error("unauthorized");
+  }
+
+  const actualPayload = { id: user.id, username: user.username, role: user.role };
+
+  const accessToken = await TokenUtils.generateAccessToken(actualPayload);
+  const refreshToken = await TokenUtils.generateRefreshToken(actualPayload);
+
+  await TokenService.createRefreshSession({ id: user.id, refreshToken, fingerprint });
+  return { accessToken, refreshToken, accessTokenExpiration: ACCESS_TOKEN_EXPIRATION };
+};
