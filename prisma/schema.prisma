@@ -1,0 +1,422 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                Int               @id @default(autoincrement())
+  username          String            @unique @db.VarChar(32)
+  email             String            @unique @db.VarChar(64)
+  password_hash     String            @unique
+  refresh_hash      String?
+  avatar_url        String?           @db.VarChar(64)
+  gender            Gender            @default(OTHER)
+  settings          Json?
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+  followers         Follows[]         @relation("following")
+  following         Follows[]         @relation("follower")
+  permissions       Permission[]
+  lists             List[]
+  tags              Tag[]
+  comments          Comment[]
+  favorite_shows    FavoriteShow[]
+  favorite_seasons  FavoriteSeason[]
+  favorite_episodes FavoriteEpisode[]
+  show_ratings      ShowRating[]
+  episode_ratings   EpisodeRating[]
+  watched_shows     WatchedShow[]
+  watched_episodes  WatchedEpisode[]
+  actions           Action[]
+
+  @@map("users")
+}
+
+model Follows {
+  follower    User @relation("follower", fields: [followerId], references: [id])
+  followerId  Int
+  following   User @relation("following", fields: [followingId], references: [id])
+  followingId Int
+
+  @@id([followerId, followingId])
+  @@map("follows")
+}
+
+model Show {
+  id                Int               @id
+  title             String            @db.VarChar(128)
+  date_started      DateTime?
+  date_ended        DateTime?
+  season_count      Int               @default(0)
+  episode_count     Int               @default(0)
+  poster_url        String            @db.VarChar(64)
+  thumb_url         String?           @db.VarChar(64)
+  imdb              String?           @db.VarChar(10)
+  tvdb              String?           @db.VarChar(10)
+  tmdb              String?           @db.VarChar(10)
+  trailer_url       String?           @db.VarChar(128)
+  network           Network           @relation(fields: [network_id], references: [id])
+  network_id        Int
+  air_status        AirStatus         @default(ENDED)
+  summary           String?           @db.VarChar(1024)
+  tagline           String?           @db.VarChar(128)
+  country           Country           @relation(fields: [country_id], references: [id])
+  country_id        Int
+  users_watched     Int               @default(0)
+  average_runtime   Int?
+  average_rating    Decimal?          @default(0) @db.Decimal(1, 1)
+  votes_count       Int               @default(0)
+  language          Language          @relation(fields: [language_id], references: [id])
+  language_id       Int
+  updatedAt         DateTime          @updatedAt
+  genres            Genre[]
+  actors            Actor[]
+  seasons           Season[]
+  episodes          Episode[]
+  show_translation  ShowTranslation[]
+  permissions       Permission[]
+  list_items        ListItem[]
+  users_rating      ShowRating[]
+  users_favorite    FavoriteShow[]
+  users_watched_arr WatchedShow[]
+
+  @@map("shows")
+}
+
+model Season {
+  id             Int              @id
+  show           Show             @relation(fields: [show_id], references: [id])
+  show_id        Int
+  poster_url     String           @db.VarChar(64)
+  thumb_url      String?          @db.VarChar(64)
+  date_started   DateTime?
+  tmdb           String?          @db.VarChar(10)
+  number         Int
+  episode_count  Int              @default(0)
+  votes_count    Int              @default(0)
+  average_rating Decimal          @default(0) @db.Decimal(1, 1)
+  episodes       Episode[]
+  list_items     ListItem[]
+  users_favorite FavoriteSeason[]
+
+  @@map("seasons")
+}
+
+model Episode {
+  id                  Int                  @id
+  show                Show                 @relation(fields: [show_id], references: [id])
+  show_id             Int
+  title               String
+  date_aired          DateTime
+  thumb_url           String?
+  summary             String?              @db.VarChar(512)
+  special             Boolean              @default(false)
+  season              Season               @relation(fields: [season_id], references: [id])
+  season_id           Int
+  number              Int
+  average_rating      Decimal              @default(0) @db.Decimal(1, 1)
+  votes_count         Int                  @default(0)
+  updatedAt           DateTime             @updatedAt
+  episode_translation EpisodeTranslation[]
+  list_items          ListItem[]
+  comments            Comment[]
+  users_rating        EpisodeRating[]
+  users_favorite      FavoriteEpisode[]
+  users_watched       WatchedEpisode[]
+
+  @@map("episodes")
+}
+
+model Comment {
+  id                 Int     @id @default(autoincrement())
+  user               User    @relation(fields: [user_id], references: [id])
+  user_id            Int
+  episode            Episode @relation(fields: [episode_id], references: [id])
+  episode_id         Int
+  body               String  @db.VarChar(2048)
+  attached_image_url String  @db.VarChar(128)
+
+  @@map("comments")
+}
+
+model List {
+  id        Int        @id @default(autoincrement())
+  user      User       @relation(fields: [user_id], references: [id])
+  user_id   Int
+  title     String     @db.VarChar(128)
+  summary   String     @db.VarChar(2048)
+  type      ListType   @default(SHOW)
+  is_ranked Boolean    @default(false)
+  items     ListItem[]
+  tags      ListTag[]  @relation("ListTags")
+
+  @@map("lists")
+}
+
+model ListItem {
+  id              Int     @id @default(autoincrement())
+  list            List    @relation(fields: [list_id], references: [id])
+  list_id         Int
+  item_show       Show    @relation(fields: [item_show_id], references: [id])
+  item_show_id    Int
+  item_episode    Episode @relation(fields: [item_episode_id], references: [id])
+  item_episode_id Int
+  item_season     Season  @relation(fields: [item_season_id], references: [id])
+  item_season_id  Int
+
+  @@map("list_items")
+}
+
+model ShowRating {
+  user      User     @relation(fields: [user_id], references: [id])
+  user_id   Int
+  show      Show     @relation(fields: [show_id], references: [id])
+  show_id   Int
+  rating    Decimal  @default(0) @db.Decimal(1, 1)
+  createdAt DateTime @default(now())
+
+  @@id([user_id, show_id])
+  @@map("show_ratings")
+}
+
+model EpisodeRating {
+  user       User     @relation(fields: [user_id], references: [id])
+  user_id    Int
+  episode    Episode  @relation(fields: [episode_id], references: [id])
+  episode_id Int
+  rating     Decimal  @default(0) @db.Decimal(1, 1)
+  createdAt  DateTime @default(now())
+
+  @@id([user_id, episode_id])
+  @@map("episode_ratings")
+}
+
+model WatchedShow {
+  user      User        @relation(fields: [user_id], references: [id])
+  user_id   Int
+  show      Show        @relation(fields: [show_id], references: [id])
+  show_id   Int
+  status    WatchStatus @default(WATCHING)
+  createdAt DateTime    @default(now())
+
+  @@id([user_id, show_id])
+  @@map("watched_shows")
+}
+
+model WatchedEpisode {
+  user       User     @relation(fields: [user_id], references: [id])
+  user_id    Int
+  episode    Episode  @relation(fields: [episode_id], references: [id])
+  episode_id Int
+  createdAt  DateTime @default(now())
+
+  @@id([user_id, episode_id])
+  @@map("watched_episodes")
+}
+
+model FavoriteShow {
+  id        Int      @id @default(autoincrement())
+  user      User     @relation(fields: [user_id], references: [id])
+  user_id   Int
+  show      Show     @relation(fields: [show_id], references: [id])
+  show_id   Int
+  createdAt DateTime @default(now())
+
+  @@map("favorite_shows")
+}
+
+model FavoriteSeason {
+  id        Int      @id @default(autoincrement())
+  user      User     @relation(fields: [user_id], references: [id])
+  user_id   Int
+  season    Season   @relation(fields: [season_id], references: [id])
+  season_id Int
+  createdAt DateTime @default(now())
+
+  @@map("favorite_seasons")
+}
+
+model FavoriteEpisode {
+  id         Int      @id @default(autoincrement())
+  user       User     @relation(fields: [user_id], references: [id])
+  user_id    Int
+  episode    Episode  @relation(fields: [episode_id], references: [id])
+  episode_id Int
+  createdAt  DateTime @default(now())
+
+  @@map("favorite_episodes")
+}
+
+model ShowTranslation {
+  id          Int      @id @default(autoincrement())
+  show        Show     @relation(fields: [show_id], references: [id])
+  show_id     Int
+  language    Language @relation(fields: [language_id], references: [id])
+  language_id Int
+  title       String   @db.VarChar(128)
+  summary     String?  @db.VarChar(512)
+
+  @@map("show_translations")
+}
+
+model EpisodeTranslation {
+  id          Int      @id @default(autoincrement())
+  episode     Episode  @relation(fields: [episode_id], references: [id])
+  episode_id  Int
+  language    Language @relation(fields: [language_id], references: [id])
+  language_id Int
+  title       String   @db.VarChar(128)
+  summary     String?  @db.VarChar(512)
+
+  @@map("episode_translations")
+}
+
+model Tag {
+  id        Int       @id @default(autoincrement())
+  name      String    @db.VarChar(32)
+  user      User      @relation(fields: [user_id], references: [id])
+  user_id   Int
+  lists     ListTag[] @relation("ListTags")
+  createdAt DateTime  @default(now())
+
+  @@map("tags")
+}
+
+model ListTag {
+  list_id Int
+  tag_id  Int
+  list    List @relation("ListTags", fields: [list_id], references: [id])
+  tag     Tag  @relation("ListTags", fields: [tag_id], references: [id])
+
+  @@id([list_id, tag_id])
+  @@map("list_tags")
+}
+
+model Genre {
+  id    Int    @id @default(autoincrement())
+  name  String @db.VarChar(32)
+  shows Show[]
+
+  @@map("genres")
+}
+
+model Network {
+  id         Int     @id
+  name       String  @db.VarChar(32)
+  country    Country @relation(fields: [country_id], references: [id])
+  country_id Int
+  shows      Show[]
+
+  @@map("networks")
+}
+
+model Country {
+  id        Int       @id @default(autoincrement())
+  code      String    @db.VarChar(3)
+  full_name String    @db.VarChar(64)
+  shows     Show[]
+  networks  Network[]
+
+  @@map("countries")
+}
+
+model Actor {
+  id          Int       @id
+  name        String    @db.VarChar(64)
+  profile_url String?   @db.VarChar(64)
+  imdb        String?   @db.VarChar(10)
+  tmdb        String?   @db.VarChar(10)
+  birthdate   DateTime?
+  deathdate   DateTime?
+  updatedAt   DateTime  @updatedAt
+  shows       Show[]
+
+  @@map("actors")
+}
+
+model Language {
+  id                  Int                  @id @default(autoincrement())
+  code                String               @db.VarChar(3)
+  full_name           String               @db.VarChar(64)
+  shows               Show[]
+  show_translation    ShowTranslation[]
+  episode_translation EpisodeTranslation[]
+
+  @@map("languages")
+}
+
+model Permission {
+  moderator    User @relation(fields: [moderator_id], references: [id])
+  moderator_id Int
+  show         Show @relation(fields: [show_id], references: [id])
+  show_id      Int
+
+  @@id([moderator_id, show_id])
+
+  @@map("permissions")
+}
+
+model Action {
+  id          Int        @id @default(autoincrement())
+  user        User       @relation(fields: [user_id], references: [id])
+  user_id     Int
+  action_type ActionType
+  action_data Json
+  createdAt   DateTime   @default(now())
+
+  @@map("actions")
+}
+
+enum ActionType {
+  WATCH_STATUS
+  RATE
+  CREATE_LIST
+  UPDATE_LIST
+  FOLLOW
+  UNFOLLOW
+  COMMENT
+  LIKE
+  LOGIN
+  LOGOUT
+}
+
+enum ListType {
+  EPISODE
+  SEASON
+  SHOW
+}
+
+enum AirStatus {
+  ON_AIR
+  ENDED
+  PAUSED
+}
+
+enum WatchStatus {
+  WATCHING
+  GOING_TO
+  STOPPED
+  WATCHED_ALL
+}
+
+enum Gender {
+  MALE
+  FEMALE
+  OTHER
+}
+
+enum Role {
+  ADMIN
+  MODERATOR
+  MEMBER
+}

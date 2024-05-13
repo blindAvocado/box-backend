@@ -1,0 +1,494 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model actions {
+  id            Int                 @id
+  user_id       Int?
+  action_type   actions_action_type
+  target_type   actions_target_type
+  target_id     Int
+  action_data   Json?
+  created_at    DateTime?           @default(dbgenerated("(now())")) @db.Timestamp(0)
+  description   String?             @db.VarChar(128)
+  actions       actions?            @relation("actionsToactions", fields: [user_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "actions_ibfk_1")
+  other_actions actions[]           @relation("actionsToactions")
+
+  @@index([user_id, created_at], map: "idx_created_at")
+  @@index([user_id, target_id], map: "idx_target_id")
+  @@index([user_id, target_type], map: "idx_target_type")
+  @@index([user_id], map: "idx_user_id")
+}
+
+model actors {
+  id           Int            @id
+  name         String         @db.VarChar(64)
+  photo_url    String?        @db.VarChar(64)
+  imdb         String?        @db.VarChar(10)
+  tmdb         String?        @db.VarChar(10)
+  birth        DateTime?      @db.Timestamp(0)
+  death        DateTime?      @db.Timestamp(0)
+  shows_actors shows_actors[]
+
+  @@index([name], map: "idx_actor_name")
+}
+
+model comments {
+  id                 Int        @id
+  user_id            Int?
+  episode_id         Int?
+  text               String     @db.VarChar(255)
+  attached_image_url String?    @db.VarChar(255)
+  comments           comments?  @relation("commentsTocomments", fields: [user_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "comments_ibfk_1")
+  other_comments     comments[] @relation("commentsTocomments")
+  episodes           episodes?  @relation(fields: [episode_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "comments_ibfk_2")
+
+  @@index([episode_id], map: "idx_episode_id")
+  @@index([user_id], map: "idx_user_id")
+}
+
+model countries {
+  id       Int        @id
+  code     String     @db.VarChar(3)
+  fullname String     @db.VarChar(50)
+  networks networks[]
+  shows    shows[]
+
+  @@index([fullname], map: "idx_fullname")
+}
+
+model episode_ratings {
+  user_id    Int
+  episode_id Int
+  rating     Decimal  @db.Decimal(10, 0)
+  users      users    @relation(fields: [user_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "episode_ratings_ibfk_1")
+  episodes   episodes @relation(fields: [episode_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "episode_ratings_ibfk_2")
+
+  @@id([user_id, episode_id])
+  @@index([episode_id], map: "idx_episode_id")
+  @@index([user_id], map: "idx_user_id")
+}
+
+model episode_translations {
+  id          Int        @id
+  episode_id  Int?
+  language_id Int?
+  title       String     @db.VarChar(255)
+  description String?    @db.VarChar(255)
+  episodes    episodes?  @relation(fields: [episode_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "episode_translations_ibfk_1")
+  languages   languages? @relation(fields: [language_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "episode_translations_ibfk_2")
+
+  @@index([episode_id, language_id], map: "idx_language_id")
+  @@index([language_id], map: "language_id")
+}
+
+model episodes {
+  id                   Int                    @id
+  show_id              Int
+  title                String                 @db.VarChar(255)
+  date_aired           DateTime               @db.Timestamp(0)
+  aired                Boolean
+  thumbnail_url        String?                @db.VarChar(255)
+  description          String?                @db.VarChar(255)
+  special              Boolean?               @default(false)
+  season_id            Int
+  number               Int?                   @db.SmallInt
+  average_rating       Decimal?               @db.Decimal(10, 0)
+  votes_count          Int?
+  comments             comments[]
+  episode_ratings      episode_ratings[]
+  episode_translations episode_translations[]
+  shows                shows                  @relation(fields: [show_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "episodes_ibfk_1")
+  seasons              seasons                @relation(fields: [season_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "episodes_ibfk_2")
+  favorite_episodes    favorite_episodes[]
+  watched_episodes     watched_episodes[]
+
+  @@index([date_aired], map: "idx_date_aired")
+  @@index([season_id], map: "idx_season_id")
+  @@index([show_id], map: "idx_show_id")
+}
+
+model favorite_episodes {
+  id                      Int                 @id
+  user_id                 Int?
+  episode_id              Int?
+  created_at              DateTime?           @default(dbgenerated("(now())")) @db.Timestamp(0)
+  favorite_episodes       favorite_episodes?  @relation("favorite_episodesTofavorite_episodes", fields: [user_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "favorite_episodes_ibfk_1")
+  other_favorite_episodes favorite_episodes[] @relation("favorite_episodesTofavorite_episodes")
+  episodes                episodes?           @relation(fields: [episode_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "favorite_episodes_ibfk_2")
+
+  @@index([episode_id], map: "idx_episode_id")
+  @@index([user_id], map: "idx_user_id")
+}
+
+model favorite_seasons {
+  id                     Int                @id
+  user_id                Int?
+  season_id              Int?
+  created_at             DateTime?          @default(dbgenerated("(now())")) @db.Timestamp(0)
+  favorite_seasons       favorite_seasons?  @relation("favorite_seasonsTofavorite_seasons", fields: [user_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "favorite_seasons_ibfk_1")
+  other_favorite_seasons favorite_seasons[] @relation("favorite_seasonsTofavorite_seasons")
+  seasons                seasons?           @relation(fields: [season_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "favorite_seasons_ibfk_2")
+
+  @@index([season_id], map: "idx_season_id")
+  @@index([user_id], map: "idx_user_id")
+}
+
+model favorite_shows {
+  id                   Int              @id
+  user_id              Int?
+  show_id              Int?
+  created_at           DateTime?        @default(dbgenerated("(now())")) @db.Timestamp(0)
+  favorite_shows       favorite_shows?  @relation("favorite_showsTofavorite_shows", fields: [user_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "favorite_shows_ibfk_1")
+  other_favorite_shows favorite_shows[] @relation("favorite_showsTofavorite_shows")
+  shows                shows?           @relation(fields: [show_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "favorite_shows_ibfk_2")
+
+  @@index([show_id], map: "idx_show_id")
+  @@index([user_id], map: "idx_user_id")
+}
+
+model followers {
+  user_id                            Int
+  follower_id                        Int
+  users_followers_user_idTousers     users @relation("followers_user_idTousers", fields: [user_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "followers_ibfk_1")
+  users_followers_follower_idTousers users @relation("followers_follower_idTousers", fields: [follower_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "followers_ibfk_2")
+
+  @@id([user_id, follower_id])
+  @@index([follower_id, user_id], map: "idx_user_id")
+}
+
+model following {
+  user_id                                  Int
+  following_user_id                        Int
+  users_following_user_idTousers           users @relation("following_user_idTousers", fields: [user_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "following_ibfk_1")
+  users_following_following_user_idTousers users @relation("following_following_user_idTousers", fields: [following_user_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "following_ibfk_2")
+
+  @@id([user_id, following_user_id])
+  @@index([following_user_id, user_id], map: "idx_user_id")
+}
+
+model genres {
+  id           Int            @id
+  name         String         @db.VarChar(32)
+  shows_genres shows_genres[]
+
+  @@index([name], map: "idx_genre")
+}
+
+model languages {
+  id                   Int                    @id
+  code                 String                 @unique(map: "code") @db.VarChar(5)
+  name                 String                 @db.VarChar(255)
+  episode_translations episode_translations[]
+  show_translations    show_translations[]
+  shows                shows[]
+
+  @@index([code], map: "idx_code")
+}
+
+model list_items {
+  id        Int                  @id
+  list_id   Int?
+  item_id   Int
+  item_type list_items_item_type
+  rank      Int?
+  lists     lists?               @relation(fields: [list_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "list_items_ibfk_1")
+
+  @@index([item_id], map: "idx_item_id")
+  @@index([list_id], map: "idx_list_id")
+  @@index([list_id, rank], map: "idx_rank")
+}
+
+model list_tags {
+  list_id Int
+  tag_id  Int
+  lists   lists @relation(fields: [list_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "list_tags_ibfk_1")
+  tags    tags  @relation(fields: [tag_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "list_tags_ibfk_2")
+
+  @@id([list_id, tag_id])
+  @@index([tag_id, list_id], map: "idx_tag_id")
+}
+
+model lists {
+  id          Int          @id
+  user_id     Int?
+  title       String       @db.VarChar(255)
+  description String?      @db.VarChar(255)
+  type        lists_type?
+  is_ranked   Boolean?     @default(false)
+  list_items  list_items[]
+  list_tags   list_tags[]
+  lists       lists?       @relation("listsTolists", fields: [user_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "lists_ibfk_1")
+  other_lists lists[]      @relation("listsTolists")
+
+  @@index([type], map: "idx_type")
+  @@index([user_id], map: "idx_user_id")
+}
+
+model moderator_permissions {
+  moderator_id Int
+  show_id      Int
+  users        users @relation(fields: [moderator_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "moderator_permissions_ibfk_1")
+  shows        shows @relation(fields: [show_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "moderator_permissions_ibfk_2")
+
+  @@id([show_id, moderator_id])
+  @@index([moderator_id, show_id], map: "idx_moderator_show")
+}
+
+model networks {
+  id        Int        @id
+  name      String     @db.VarChar(32)
+  country   Int?
+  countries countries? @relation(fields: [country], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "networks_ibfk_1")
+  shows     shows[]
+
+  @@index([country], map: "country")
+}
+
+model seasons {
+  id               Int                @id
+  show_id          Int?
+  poster_url       String?            @db.VarChar(64)
+  banner_url       String?            @db.VarChar(64)
+  date_aired       DateTime?          @db.Timestamp(0)
+  tmdb             String?            @db.VarChar(10)
+  number           Int?               @db.SmallInt
+  episode_count    Int?               @db.SmallInt
+  average_rating   Decimal?           @db.Decimal(10, 0)
+  votes_count      Int?
+  episodes         episodes[]
+  favorite_seasons favorite_seasons[]
+  shows            shows?             @relation(fields: [show_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "seasons_ibfk_1")
+
+  @@index([show_id, number], map: "idx_number")
+  @@index([show_id], map: "idx_show_id")
+  @@index([tmdb], map: "idx_tmdb")
+}
+
+model show_ratings {
+  user_id Int
+  show_id Int
+  rating  Decimal @db.Decimal(10, 0)
+  users   users   @relation(fields: [user_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "show_ratings_ibfk_1")
+  shows   shows   @relation(fields: [show_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "show_ratings_ibfk_2")
+
+  @@id([user_id, show_id])
+  @@index([show_id], map: "idx_show_id")
+  @@index([show_id, user_id], map: "idx_show_user_id")
+  @@index([user_id], map: "idx_user_id")
+}
+
+model show_translations {
+  id          Int        @id
+  show_id     Int?
+  language_id Int?
+  title       String     @db.VarChar(255)
+  description String?    @db.VarChar(255)
+  shows       shows?     @relation(fields: [show_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "show_translations_ibfk_1")
+  languages   languages? @relation(fields: [language_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "show_translations_ibfk_2")
+
+  @@index([show_id, language_id], map: "idx_language_id")
+  @@index([language_id], map: "language_id")
+}
+
+model shows {
+  id                    Int                     @id
+  title                 String                  @db.VarChar(128)
+  date_started          DateTime?               @db.Timestamp(0)
+  date_ended            DateTime?               @db.Timestamp(0)
+  seasonsCount          Int?
+  episodesCount         Int?
+  poster_url            String?                 @db.VarChar(64)
+  thumb_url             String?                 @db.VarChar(64)
+  imdb                  String?                 @db.VarChar(10)
+  tvdb                  String?                 @db.VarChar(10)
+  tmdb                  String?                 @db.VarChar(10)
+  trailer_url           String?                 @db.VarChar(64)
+  network               Int?
+  air_status            shows_air_status?
+  description           String?                 @db.VarChar(1024)
+  tagline               String?                 @db.VarChar(128)
+  country               Int?
+  users_watched         Int?
+  average_runtime       Int?
+  average_rating        Decimal?                @db.Decimal(10, 0)
+  votes_count           Int?
+  language_id           Int?
+  episodes              episodes[]
+  favorite_shows        favorite_shows[]
+  moderator_permissions moderator_permissions[]
+  seasons               seasons[]
+  show_ratings          show_ratings[]
+  show_translations     show_translations[]
+  networks              networks?               @relation(fields: [network], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "shows_ibfk_1")
+  countries             countries?              @relation(fields: [country], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "shows_ibfk_2")
+  languages             languages?              @relation(fields: [language_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "shows_ibfk_3")
+  shows_actors          shows_actors[]
+  shows_genres          shows_genres[]
+  watched_shows         watched_shows[]
+
+  @@index([air_status], map: "idx_air_status")
+  @@index([country], map: "idx_country")
+  @@index([date_started], map: "idx_date_started")
+  @@index([date_started, air_status], map: "idx_date_started_air_status")
+  @@index([imdb], map: "idx_imdb")
+  @@index([title], map: "idx_title")
+  @@index([tmdb], map: "idx_tmdb")
+  @@index([tvdb], map: "idx_tvdb")
+  @@index([language_id], map: "language_id")
+  @@index([network], map: "network")
+}
+
+model shows_actors {
+  show_id  Int
+  actor_id Int
+  shows    shows  @relation(fields: [show_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "shows_actors_ibfk_1")
+  actors   actors @relation(fields: [actor_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "shows_actors_ibfk_2")
+
+  @@id([show_id, actor_id])
+  @@index([actor_id], map: "idx_actor_id")
+  @@index([show_id], map: "idx_show_id")
+}
+
+model shows_genres {
+  show_id  Int
+  genre_id Int
+  shows    shows  @relation(fields: [show_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "shows_genres_ibfk_1")
+  genres   genres @relation(fields: [genre_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "shows_genres_ibfk_2")
+
+  @@id([show_id, genre_id])
+  @@index([genre_id], map: "idx_genre_id")
+  @@index([show_id], map: "idx_show_id")
+}
+
+model tags {
+  id         Int         @id
+  user_id    Int?
+  tag        String      @db.VarChar(64)
+  list_tags  list_tags[]
+  tags       tags?       @relation("tagsTotags", fields: [user_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "tags_ibfk_1")
+  other_tags tags[]      @relation("tagsTotags")
+
+  @@index([user_id, tag], map: "idx_tag")
+}
+
+model user_roles {
+  user_id Int
+  role    user_roles_role
+  users   users           @relation(fields: [user_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "user_roles_ibfk_1")
+
+  @@id([user_id, role])
+  @@index([role], map: "idx_user_role")
+}
+
+model users {
+  id                                           Int                     @id
+  username                                     String                  @unique(map: "username") @db.VarChar(32)
+  password_hash                                String                  @unique(map: "password_hash") @db.VarChar(255)
+  avatar_url                                   String?                 @db.VarChar(255)
+  gender                                       users_gender?
+  created_at                                   DateTime?               @default(dbgenerated("(now())")) @db.Timestamp(0)
+  last_login                                   DateTime?               @db.Timestamp(0)
+  settings                                     Json?
+  episode_ratings                              episode_ratings[]
+  followers_followers_user_idTousers           followers[]             @relation("followers_user_idTousers")
+  followers_followers_follower_idTousers       followers[]             @relation("followers_follower_idTousers")
+  following_following_user_idTousers           following[]             @relation("following_user_idTousers")
+  following_following_following_user_idTousers following[]             @relation("following_following_user_idTousers")
+  moderator_permissions                        moderator_permissions[]
+  show_ratings                                 show_ratings[]
+  user_roles                                   user_roles[]
+  watched_episodes                             watched_episodes[]
+  watched_shows                                watched_shows[]
+
+  @@index([username], map: "idx_username")
+}
+
+model watched_episodes {
+  user_id    Int
+  episode_id Int
+  users      users    @relation(fields: [user_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "watched_episodes_ibfk_1")
+  episodes   episodes @relation(fields: [episode_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "watched_episodes_ibfk_2")
+
+  @@id([user_id, episode_id])
+  @@index([episode_id, user_id], map: "idx_episode_id")
+  @@index([user_id], map: "idx_user_id")
+}
+
+model watched_shows {
+  user_id Int
+  show_id Int
+  status  watched_shows_status?
+  users   users                 @relation(fields: [user_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "watched_shows_ibfk_1")
+  shows   shows                 @relation(fields: [show_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "watched_shows_ibfk_2")
+
+  @@id([user_id, show_id])
+  @@index([show_id, user_id], map: "idx_show_id")
+  @@index([user_id], map: "idx_user_id")
+}
+
+enum user_roles_role {
+  admin
+  moderator
+  default
+}
+
+enum actions_action_type {
+  watch_status
+  rate
+  create_list
+  update_list
+  follow_user
+  unfollow_user
+  comment
+  unlock_achievement
+  like
+  login
+  logout
+}
+
+enum watched_shows_status {
+  currently_watching @map("currently watching")
+  going_to           @map("going to")
+  stopped
+  watched_all        @map("watched all")
+}
+
+enum actions_target_type {
+  user
+  show
+  season
+  episode
+  list
+  comment
+  achievement
+}
+
+enum list_items_item_type {
+  episodes
+  seasons
+  shows
+}
+
+enum lists_type {
+  episodes
+  seasons
+  shows
+}
+
+enum users_gender {
+  male
+  female
+  other
+}
+
+enum shows_air_status {
+  airing
+  ended
+  paused
+}
