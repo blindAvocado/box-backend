@@ -4,12 +4,18 @@ import dotenv from "dotenv";
 import Fingerprint from "express-fingerprint";
 import cookieParser from "cookie-parser";
 import AuthRouter from "./routers/auth";
+import AdminRouter from "./routers/admin";
+import axios from "axios";
+import path from "path";
 
 dotenv.config();
 
 if (!process.env.PORT) {
   process.exit(1);
 }
+
+axios.defaults.headers.common['Authorization'] = `Bearer ${process.env.TMDB_TOKEN}` 
+
 
 const PORT: number = parseInt(process.env.PORT as string, 10);
 
@@ -26,7 +32,10 @@ app.use(
     parameters: [Fingerprint.useragent, Fingerprint.acceptHeaders],
   })
 );
+app.use(express.static(path.join(process.cwd(), 'public')));
+
 app.use("/api/auth", AuthRouter);
+app.use("/api/manage", AdminRouter);
 
 app.listen(PORT, () => {
   console.log(`Listening on port ${PORT}`);
