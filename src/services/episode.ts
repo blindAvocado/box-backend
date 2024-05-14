@@ -1,9 +1,11 @@
 import { Prisma } from "@prisma/client";
 import { ICommentDTO, IEpisodeDTO, IOtherEpisode } from "../types/episode";
 import { db } from "../utils/db.server";
-import { NotFound } from "../utils/errors";
+import { InternalError, NotFound } from "../utils/errors";
 import { normalizeImagePath } from "../utils/base";
-import { ArrayElement } from "../types/base";
+import { ICreateCommentInput } from "../types/inputs";
+import { IAction, ITokenPayload } from "../types/base";
+import * as UserService from "./user";
 
 const showWithFields = Prisma.validator<Prisma.ShowDefaultArgs>()({
   include: {
@@ -11,29 +13,16 @@ const showWithFields = Prisma.validator<Prisma.ShowDefaultArgs>()({
   },
 });
 
-const episodeWithFields = Prisma.validator<Prisma.EpisodeDefaultArgs>()({
-  include: {
-    comments: {
-      include: {
-        user: true,
-        subcomments: true,
-      }
-    },
-  },
-});
-
 const comment = Prisma.validator<Prisma.CommentDefaultArgs>()({
   include: {
     user: true,
     subcomments: true,
-  }
-})
+  },
+});
 
 type Show = Prisma.ShowGetPayload<typeof showWithFields>;
 
-type Episode = Prisma.EpisodeGetPayload<typeof episodeWithFields>;
-
-type Comment = Prisma.CommentGetPayload<typeof comment>
+type Comment = Prisma.CommentGetPayload<typeof comment>;
 
 export const getEpisodePage = async (episodeId: number) => {
   try {
@@ -109,6 +98,33 @@ export const getEpisodeComments = async (episodeId: number) => {
   }
 };
 
+export const createEpisodeComment = async (episodeId: number, comment: ICreateCommentInput, user: ITokenPayload) => {
+  try {
+    const newComment = await db.comment.create({
+      data: {
+        user: { connect: { id: user.id } },
+        episode: { connect: { id: episodeId } },
+        body: comment.body,
+        ...(comment.parentCommentId && { parent_comment: { connect: { id: comment.parentCommentId } } }),
+        ...(comment.attachedImageUrl && { attached_image_url: comment.attachedImageUrl }),
+      },
+    });
+
+    await UserService.createAction(user.id, "COMMENT", {
+      value: newComment.id,
+      target: {
+        type: "episode",
+        id: episodeId,
+      }
+    });
+
+    return newComment;
+  } catch (err) {
+    console.log("🚀 ~ createEpisodeComment ~ err:", err);
+    return new InternalError();
+  }
+};
+
 const getOtherEpisodes = (episodes: Show["episodes"], currentEpisodeId: number): IOtherEpisode[] => {
   const episodesRev = episodes.reverse();
 
@@ -166,6 +182,8 @@ const normalizeComments = (comment: Comment): ICommentDTO => {
       id: comment.user.id,
       username: comment.user.username,
     },
-    ...(comment.subcomments.length && { subcomments: comment.subcomments.map(subcomment => normalizeComments(subcomment as Comment)) }),
+    ...(comment.subcomments.length && {
+      subcomments: comment.subcomments.map((subcomment) => normalizeComments(subcomment as Comment)),
+    }),
   };
 };

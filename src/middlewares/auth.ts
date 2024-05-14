@@ -3,12 +3,13 @@ import jwt, { type JwtPayload } from "jsonwebtoken";
 import * as TokenService from "../services/token";
 import { Forbidden, Unauthorized } from "../utils/errors";
 
-interface IAuthReq extends Request {
+export interface IAuthReq extends Request {
   user: string | JwtPayload
 }
 
 export const checkAccess = async (req: Request, res: Response, next: NextFunction) => {
   const authHeader = req.headers.authorization;
+  console.log("🚀 ~ checkAccess ~ authHeader:", authHeader)
 
   const token = authHeader?.split(" ")?.[1];
 
@@ -18,6 +19,10 @@ export const checkAccess = async (req: Request, res: Response, next: NextFunctio
 
   try {
     const _userfromtoken = await TokenService.verifyAccessToken(token);
+
+    //@ts-ignore
+    req.user = _userfromtoken;
+    
     console.log(_userfromtoken);
   } catch (error) {
     console.log(error);

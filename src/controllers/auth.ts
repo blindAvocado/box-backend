@@ -1,6 +1,7 @@
 import type { Request, Response } from "express";
 import * as AuthService from "../services/auth";
 import { COOKIE_SETTINGS } from "../constants";
+import { IAuthReq } from "../middlewares/auth";
 
 export const signup = async (req: Request, res: Response) => {
   const { username, password } = req.body;
@@ -55,4 +56,20 @@ export const logout = async (req: Request, res: Response) => {
   }
 };
 
-export const refresh = async (req: Request, res: Response) => {};
+export const refresh = async (req: Request, res: Response) => {
+  const currentRefreshToken = req.cookies.refreshToken;
+  const { fingerprint } = req;
+
+  try {
+    const { accessToken, refreshToken, accessTokenExpiration } = await AuthService.refresh({
+      currentRefreshToken,
+      fingerprint,
+    });
+
+    res.cookie("refreshToken", refreshToken, COOKIE_SETTINGS.REFRESH_TOKEN);
+
+    return res.status(200).json({ accessToken, accessTokenExpiration });
+  } catch (err) {
+    return res.status(500).json(err);
+  }
+};

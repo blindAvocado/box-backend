@@ -158,10 +158,10 @@ model Comment {
   user_id            Int
   episode            Episode @relation(fields: [episode_id], references: [id])
   episode_id         Int
-  parent_comment     Comment @relation("Subcomments", fields: [parent_comment_id], references: [id])
-  parent_comment_id  Int
+  parent_comment     Comment? @relation("Subcomments", fields: [parent_comment_id], references: [id], onDelete: Cascade)
+  parent_comment_id  Int?
   body               String  @db.VarChar(2048)
-  attached_image_url String  @db.VarChar(128)
+  attached_image_url String?  @db.VarChar(128)
   createdAt          DateTime          @default(now())
   updatedAt          DateTime          @updatedAt
   subcomments        Comment[]  @relation("Subcomments")
@@ -388,7 +388,7 @@ model Permission {
 
 model Action {
   id          Int        @id @default(autoincrement())
-  user        User       @relation(fields: [user_id], references: [id])
+  user        User       @relation(fields: [user_id], references: [id], onDelete: Cascade)
   user_id     Int
   action_type ActionType
   action_data Json
@@ -400,6 +400,8 @@ model Action {
 enum ActionType {
   WATCH_STATUS
   RATE
+  WATCH
+  RATE_WATCH
   CREATE_LIST
   UPDATE_LIST
   FOLLOW
