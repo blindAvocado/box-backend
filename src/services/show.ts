@@ -92,6 +92,10 @@ export const getShowPage = async (showId: number) => {
   }
 };
 
+export const getAllShows = async () => {
+  
+}
+
 export const changeStatus = async (showId: number, userId: number, statusInput: TStatusInput) => {
   console.log("🚀 ~ changeStatus ~ statusInput:", statusInput);
 

@@ -4,7 +4,15 @@ import * as ShowService from "../services/show";
 import { ITokenPayload } from "../types/base";
 import { TStatusInput } from "../types/inputs";
 
-export const getAllShows = async (req: Request, res: Response) => {};
+export const getAllShows = async (req: Request, res: Response) => {
+  try {
+    const show = await ShowService.getAllShows();
+
+    res.status(200).json({ show });
+  } catch (err: any) {
+    return ErrorUtils.catchError(res, err);
+  }
+};
 
 export const getPage = async (req: Request, res: Response) => {
   const showId: string = req.params.show_id;

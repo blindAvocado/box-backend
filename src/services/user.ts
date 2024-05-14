@@ -2,7 +2,7 @@ import { Prisma } from "@prisma/client";
 import { IAction, IActionType } from "../types/base";
 import { db } from "../utils/db.server";
 import { InternalError, NotFound } from "../utils/errors";
-import { IRateInput } from "../types/inputs";
+import { IRateInput, IWatchInput } from "../types/inputs";
 
 const action = Prisma.validator<Prisma.ActionDefaultArgs>()({});
 
@@ -234,6 +234,43 @@ export const rate = async (userId: number, input: IRateInput) => {
     return new InternalError();
   }
 };
+
+export const watch = async (userId: number, input: IWatchInput) => {
+  try {
+    if (input.value) {
+      const watch = await db.watchedEpisode.create({
+        data: {
+          user: { connect: { id: userId } },
+          episode: { connect: { id: input.id } },
+        }
+      });
+      
+      console.log("🚀 ~ watch ~ watch:", watch)
+
+      await createAction(userId, "WATCH", {
+        target: {
+          type: "episode",
+          id: input.id,
+        }
+      })
+
+      return watch;
+    } else {
+      const watch = await db.watchedEpisode.delete({
+        where: {
+          user_id_episode_id: {
+            user_id: userId,
+            episode_id: input.id,
+          }
+        }
+      });
+
+      return watch;
+    }
+  } catch (err) {
+    throw new InternalError();
+  }
+}
 
 export const getPage = async (userId: number) => {
 };

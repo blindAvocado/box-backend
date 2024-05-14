@@ -10,4 +10,9 @@ export interface IRateInput {
   value: number,
 }
 
+export interface IWatchInput {
+  id: number,
+  value: boolean,
+}
+
 export type TStatusInput = "WATCHING" | "GOING_TO" | "STOPPED" | "NOT_WATCHING";
