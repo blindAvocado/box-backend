@@ -109,10 +109,9 @@ model Show {
 
 model Season {
   id             Int              @id
-  show           Show             @relation(fields: [show_id], references: [id])
+  show           Show             @relation(fields: [show_id], references: [id], onDelete: Cascade)
   show_id        Int
   poster_url     String           @db.VarChar(64)
-  thumb_url      String?          @db.VarChar(64)
   date_started   DateTime?
   tmdb           String?          @db.VarChar(10)
   number         Int
@@ -128,7 +127,7 @@ model Season {
 
 model Episode {
   id                  Int                  @id
-  show                Show                 @relation(fields: [show_id], references: [id])
+  show                Show                 @relation(fields: [show_id], references: [id], onDelete: Cascade)
   show_id             Int
   title               String
   date_aired          DateTime
@@ -179,7 +178,7 @@ model List {
 
 model ListItem {
   id              Int     @id @default(autoincrement())
-  list            List    @relation(fields: [list_id], references: [id])
+  list            List    @relation(fields: [list_id], references: [id], onDelete: Cascade)
   list_id         Int
   item_show       Show    @relation(fields: [item_show_id], references: [id])
   item_show_id    Int

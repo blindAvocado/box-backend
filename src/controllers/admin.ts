@@ -1,9 +1,10 @@
 import { Request, Response } from "express";
 import { db } from "../utils/db.server";
-import { ICastResp, INetworkResp, ISeasonDetailResp, ITmdbShowDetails, IVideoResp } from "../types/tmdb";
+import { ICastResp, INetworkResp, IPersonResp, ISeasonDetailResp, ITmdbShowDetails, IVideoResp } from "../types/tmdb";
 import { EAirStatus } from "../types/show";
 import path from "path";
 import fs from "fs";
+import { sleep } from "../utils/base";
 
 const axios = require("axios");
 
@@ -17,7 +18,25 @@ function normalizeAirStatus(status: string): EAirStatus {
 }
 
 export async function addShowFromTMDB(req: Request, res: Response) {
-  const tmdbId = req.params.tmdb;
+  const tmdbId: string = req.params.tmdb;
+
+  const existingShow = await db.show.findUnique({
+    where: { id: parseInt(tmdbId, 10) },
+    include: {
+      network: true,
+      country: true,
+      language: true,
+      seasons: true,
+      episodes: true,
+      genres: true,
+      actors: true,
+    },
+  });
+
+  if (existingShow) {
+    res.status(200).json({ message: "Show already exists in DB", show: existingShow });
+    return;
+  }
 
   try {
     const showResponse = await axios.get(
@@ -32,9 +51,8 @@ export async function addShowFromTMDB(req: Request, res: Response) {
     }
 
     const savedShow = await saveShowToDatabase(showData, seasonsData);
-    console.log("🚀 ~ addShowFromTMDB ~ savedShow:", savedShow)
 
-    res.status(200).json({ message: "Show added successfully" });
+    res.status(200).json({ message: "Show added successfully", show: savedShow });
   } catch (error) {
     console.error("Error adding show from TMDB:", error);
     res.status(500).json({ error: "Internal server error" });
@@ -76,7 +94,7 @@ async function saveShowToDatabase(showData: ITmdbShowDetails, seasonsData: ISeas
   if (showData.poster_path) saveTMDBImage(showData.poster_path);
   if (showData.backdrop_path) saveTMDBImage(showData.backdrop_path);
 
-  const youtubeId = getYoutubeId(showData.videos.results)
+  const youtubeId = getYoutubeId(showData.videos.results);
   const networkId = await getNetworkId(showData.networks[0]);
   const languageId = await getLanguageId(showData.languages[0]);
   const countryId = await getCountryId(showData.origin_country[0]);
@@ -104,39 +122,55 @@ async function saveShowToDatabase(showData: ITmdbShowDetails, seasonsData: ISeas
         connect: showData.genres.map((genre) => ({ id: genre.id })),
       },
       network: {
-        connect: { id: networkId }
+        connect: { id: networkId },
       },
       country: {
-        connect: { id: countryId }
+        connect: { id: countryId },
       },
       language: {
-        connect: { id: languageId }
+        connect: { id: languageId },
       },
       actors: {
-        connect: actorsId?.map(id => ({ id }))
-      }
+        connect: actorsId?.map((id) => ({ id })),
+      },
+      seasons: {
+        create: seasonsData.map((season) => {
+          if (season.poster_path) saveTMDBImage(season.poster_path);
+
+          for (const episode of season.episodes) {
+            if (episode.still_path) saveTMDBImage(episode.still_path);
+          }
+
+          return {
+            id: season.id,
+            poster_url: season.poster_path,
+            date_started: new Date(season.air_date),
+            number: season.season_number,
+            episode_count: season.episodes.length,
+            episodes: {
+              create: season.episodes.map((episode) => ({
+                id: episode.id,
+                title: episode.name,
+                ...(episode.still_path && { thumb_url: episode.still_path }),
+                ...(episode.overview && { summary: episode.overview }),
+                number: episode.episode_number,
+                date_aired: new Date(episode.air_date),
+                show: {
+                  connect: { id: episode.show_id },
+                },
+              })),
+            },
+          };
+        }),
+      },
     },
     include: {
       network: true,
       country: true,
       language: true,
-    }
+      seasons: true,
+    },
   });
-
-  // for (const seasonData of seasonsData.episodes) {
-  //     await newShow.seasons.push({
-  //         seasonNumber: seasonData.season_number,
-  //         name: seasonData.name,
-  //         overview: seasonData.overview,
-  //         posterPath: seasonData.poster_path,
-  //         episodes: seasonData.episodes.map(episode => ({
-  //             episodeNumber: episode.episode_number,
-  //             name: episode.name,
-  //             overview: episode.overview,
-  //             airDate: episode.air_date,
-  //         })),
-  //     });
-  // }
 
   return newShow;
 }
@@ -150,7 +184,6 @@ async function getNetworkId(network: INetworkResp) {
   if (existingNetwork) {
     networkId = existingNetwork.id;
   } else {
-
     const countryId = await getCountryId(network.origin_country);
 
     const newNetwork = await db.network.create({
@@ -158,8 +191,8 @@ async function getNetworkId(network: INetworkResp) {
         id: network.id,
         name: network.name,
         country: {
-          connect: { id: countryId }
-        }
+          connect: { id: countryId },
+        },
       },
     });
     networkId = newNetwork.id;
@@ -170,48 +203,54 @@ async function getNetworkId(network: INetworkResp) {
 
 async function getCountryId(countryCode: string) {
   const existingCountry = await db.country.findFirst({
-    where: { code: countryCode }
-  })
+    where: { code: countryCode },
+  });
 
   return existingCountry?.id ?? 229;
 }
 
 async function getLanguageId(languageCode: string) {
   const existingLanguage = await db.language.findFirst({
-    where: { code: languageCode }
-  })
+    where: { code: languageCode },
+  });
 
   return existingLanguage?.id ?? 108;
 }
 
 async function getActorsId(showId: number) {
   try {
-    const creditsResponse = await axios.get(
-      `https://api.themoviedb.org/3/tv/${showId}/aggregate_credits`
-    );
+    const creditsResponse = await axios.get(`https://api.themoviedb.org/3/tv/${showId}/aggregate_credits`);
 
     const cast = (creditsResponse.data.cast as ICastResp[]).slice(0, 10);
-    
+
     for (const actor of cast) {
       if (actor.profile_path) saveTMDBImage(actor.profile_path);
-      
+
       const existingActor = await db.actor.findFirst({
         where: { tmdb: String(actor.id) },
       });
 
       if (!existingActor) {
+        await sleep(1000);
+        const actorDetailsResponse = await axios.get(`https://api.themoviedb.org/3/person/${actor.id}`);
+
+        const actorDetails = actorDetailsResponse.data as IPersonResp;
+
         await db.actor.create({
           data: {
             id: actor.id,
             name: actor.name,
+            imdb: actorDetails.imdb_id,
             tmdb: String(actor.id),
-            profile_url: actor.profile_path
+            ...(actorDetails.birthday && { birthdate: new Date(actorDetails.birthday) }),
+            ...(actorDetails.deathday && { deathdate: new Date(actorDetails.deathday) }),
+            profile_url: actor.profile_path,
           },
         });
       }
     }
 
-    return cast.map(actor => actor.id);
+    return cast.map((actor) => actor.id);
   } catch (err) {
     console.error(err);
   }
@@ -222,8 +261,7 @@ function getYoutubeId(videos: IVideoResp[]) {
     return null;
   }
 
-  const res = videos.filter(video => video.site === "YouTube").map(video => ({ id: video.key }));
-  console.log("🚀 ~ getYoutubeId ~ res:", res)
-  
+  const res = videos.filter((video) => video.site === "YouTube").map((video) => ({ id: video.key }));
+
   return res[0].id;
 }

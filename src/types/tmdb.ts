@@ -159,3 +159,26 @@ export interface ICastResp {
   total_episode_count: number;
   order: number;
 }
+
+export interface IPersonResp {
+  biography?: string;
+  birthday?: string;
+  deathday: string | null;
+  gender: number;
+  id: number;
+  imdb_id: string;
+  name: string;
+  place_of_birth?: string;
+  profile_path?: string;
+  images: {
+    profile: {
+      aspect_ratio: number;
+      width: string;
+      height: number;
+      iso_639_1?: string | null;
+      file_path: string;
+      vote_average: string;
+      vote_count: string;
+    };
+  };
+}
