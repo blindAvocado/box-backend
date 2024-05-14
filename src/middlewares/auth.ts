@@ -1,6 +1,7 @@
 import { NextFunction, Request, Response } from "express";
 import jwt, { type JwtPayload } from "jsonwebtoken";
 import * as TokenService from "../services/token";
+import { Forbidden, Unauthorized } from "../utils/errors";
 
 interface IAuthReq extends Request {
   user: string | JwtPayload
@@ -12,7 +13,7 @@ export const checkAccess = async (req: Request, res: Response, next: NextFunctio
   const token = authHeader?.split(" ")?.[1];
 
   if (!token) {
-    return next(res.status(401));
+    return next(new Unauthorized());
   }
 
   try {
@@ -20,7 +21,7 @@ export const checkAccess = async (req: Request, res: Response, next: NextFunctio
     console.log(_userfromtoken);
   } catch (error) {
     console.log(error);
-    return next(res.status(403));
+    return next(new Forbidden());
   }
 
   next();

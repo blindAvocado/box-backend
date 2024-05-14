@@ -88,7 +88,7 @@ model Show {
   country_id        Int
   users_watched     Int               @default(0)
   average_runtime   Int?
-  average_rating    Decimal?          @default(0) @db.Decimal(1, 1)
+  average_rating    Decimal?          @default(0.0) @db.Decimal(2, 1)
   votes_count       Int               @default(0)
   language          Language          @relation(fields: [language_id], references: [id])
   language_id       Int
@@ -117,7 +117,7 @@ model Season {
   number         Int
   episode_count  Int              @default(0)
   votes_count    Int              @default(0)
-  average_rating Decimal          @default(0) @db.Decimal(1, 1)
+  average_rating Decimal          @default(0.0) @db.Decimal(2, 1)
   episodes       Episode[]
   list_items     ListItem[]
   users_favorite FavoriteSeason[]
@@ -136,8 +136,10 @@ model Episode {
   special             Boolean              @default(false)
   season              Season               @relation(fields: [season_id], references: [id])
   season_id           Int
+  season_number       Int?                 @default(0)
   number              Int
-  average_rating      Decimal              @default(0) @db.Decimal(1, 1)
+  runtime             Int                  @default(0)
+  average_rating      Decimal              @default(0.0) @db.Decimal(2, 1)
   votes_count         Int                  @default(0)
   updatedAt           DateTime             @updatedAt
   episode_translation EpisodeTranslation[]
@@ -156,8 +158,13 @@ model Comment {
   user_id            Int
   episode            Episode @relation(fields: [episode_id], references: [id])
   episode_id         Int
+  parent_comment     Comment @relation("Subcomments", fields: [parent_comment_id], references: [id])
+  parent_comment_id  Int
   body               String  @db.VarChar(2048)
   attached_image_url String  @db.VarChar(128)
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
+  subcomments        Comment[]  @relation("Subcomments")
 
   @@map("comments")
 }
@@ -195,7 +202,7 @@ model ShowRating {
   user_id   Int
   show      Show     @relation(fields: [show_id], references: [id])
   show_id   Int
-  rating    Decimal  @default(0) @db.Decimal(1, 1)
+  rating    Decimal  @default(0.0) @db.Decimal(2, 1)
   createdAt DateTime @default(now())
 
   @@id([user_id, show_id])
@@ -207,7 +214,7 @@ model EpisodeRating {
   user_id    Int
   episode    Episode  @relation(fields: [episode_id], references: [id])
   episode_id Int
-  rating     Decimal  @default(0) @db.Decimal(1, 1)
+  rating     Decimal  @default(0.0) @db.Decimal(2, 1)
   createdAt  DateTime @default(now())
 
   @@id([user_id, episode_id])

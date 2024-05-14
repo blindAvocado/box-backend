@@ -1,6 +1,4 @@
 import type { Request, Response } from "express";
-import bcrypt from "bcryptjs";
-import { db } from "../utils/db.server";
 import * as AuthService from "../services/auth";
 import { COOKIE_SETTINGS } from "../constants";
 

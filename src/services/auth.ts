@@ -4,6 +4,7 @@ import { db } from "../utils/db.server";
 import { ACCESS_TOKEN_EXPIRATION } from "../constants";
 import * as TokenService from "./token";
 import * as TokenUtils from "../utils/token";
+import { Forbidden, NotFound, Unauthorized } from "../utils/errors";
 
 interface IUserSignup extends IRequest {
   username: string;
@@ -54,10 +55,10 @@ export const login = async (user: IUserSignup) => {
   const { username, password, fingerprint } = user;
 
   const userFound = await db.user.findUnique({ where: { username } });
-  if (!userFound) throw new Error("User not found");
+  if (!userFound) throw new NotFound("User not found");
 
   const isPasswordValid = await bcrypt.compare(password, userFound.password_hash);
-  if (!isPasswordValid) throw new Error("Invalid username or password");
+  if (!isPasswordValid) throw new Unauthorized("Invalid username or password");
 
   const payload: IPayload = { id: userFound.id, role: userFound.role, username: userFound.username };
 
@@ -74,17 +75,17 @@ export const logout = async (refreshToken: string) => {
 
 export const refresh = async ({ currentRefreshToken, fingerprint }: IRefresh) => {
   if (!currentRefreshToken) {
-    throw new Error("unauthorized");
+    throw new Unauthorized();
   }
 
   const refreshSession = await TokenService.getRefreshSession(currentRefreshToken);
 
   if (!refreshSession) {
-    throw new Error("unauthorized");
+    throw new Unauthorized();
   }
 
   if (refreshSession.fingerprint !== fingerprint?.hash) {
-    throw new Error("forbidden");
+    throw new Forbidden();
   }
 
   await TokenService.deleteRefreshSession(currentRefreshToken);
@@ -93,7 +94,7 @@ export const refresh = async ({ currentRefreshToken, fingerprint }: IRefresh) =>
   try {
     payload = await TokenService.verifyRefreshToken(currentRefreshToken) as IPayload;
   } catch (error) {
-    throw new Error("forbidden");
+    throw new Forbidden();
   }
 
   const user = await db.user.findUnique({
@@ -103,7 +104,7 @@ export const refresh = async ({ currentRefreshToken, fingerprint }: IRefresh) =>
   });
 
   if (!user) {
-    throw new Error("unauthorized");
+    throw new Unauthorized();
   }
 
   const actualPayload = { id: user.id, username: user.username, role: user.role };
