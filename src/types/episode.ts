@@ -15,6 +15,7 @@ export interface IEpisodeDTO {
   rating: IRating;
   personal?: IEpisodePersonal;
   comments_count: number;
+  comments?: ICommentDTO[];
   otherEpisodes?: IOtherEpisode[];
 }
 

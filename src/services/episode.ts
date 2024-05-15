@@ -16,7 +16,22 @@ const showWithFields = Prisma.validator<Prisma.ShowDefaultArgs>()({
 const comment = Prisma.validator<Prisma.CommentDefaultArgs>()({
   include: {
     user: true,
-    subcomments: true,
+    subcomments: {
+      include: {
+        user: true,
+        subcomments: {
+          include: {
+            user: true,
+            subcomments: {
+              include: {
+                user: true,
+                subcomments: true,
+              }
+            }
+          }
+        },
+      }
+    },
   },
 });
 
@@ -25,6 +40,7 @@ type Show = Prisma.ShowGetPayload<typeof showWithFields>;
 type Comment = Prisma.CommentGetPayload<typeof comment>;
 
 export const getEpisodePage = async (episodeId: number) => {
+  console.log("🚀 ~ getEpisodePage ~ episodeId:", episodeId)
   try {
     const episode = await db.episode.findUnique({
       where: { id: episodeId },
@@ -34,9 +50,32 @@ export const getEpisodePage = async (episodeId: number) => {
             episodes: true,
           },
         },
-        comments: true,
+        comments: {
+          include: {
+            user: true,
+            subcomments: {
+              include: {
+                user: true,
+                subcomments: {
+                  include: {
+                    user: true,
+                    subcomments: {
+                      include: {
+                        user: true,
+                        subcomments: true,
+                      }
+                    }
+                  }
+                },
+              }
+            },
+          },
+        },
       },
     });
+
+    console.log("🚀 ~ getEpisodePage ~ episode:", episode);
+
 
     if (!episode) {
       return new NotFound();
@@ -60,11 +99,13 @@ export const getEpisodePage = async (episodeId: number) => {
       watched: 0,
       comments_count: 0,
       otherEpisodes: getOtherEpisodes(episode.show.episodes, episodeId),
+      comments: episode.comments.map(comment => normalizeComments(comment as Comment)),
     };
 
     return episodeDTO;
   } catch (err) {
-    return new NotFound();
+    console.log("🚀 ~ getEpisodePage ~ err:", err)
+    throw new InternalError();
   }
 };
 
@@ -89,7 +130,7 @@ export const getEpisodeComments = async (episodeId: number) => {
     const commentsDTO: ICommentDTO[] = [];
 
     for (const comment of episode.comments) {
-      commentsDTO.push(normalizeComments(comment));
+      commentsDTO.push(normalizeComments(comment as Comment));
     }
 
     return commentsDTO;
@@ -98,7 +139,7 @@ export const getEpisodeComments = async (episodeId: number) => {
   }
 };
 
-export const createEpisodeComment = async (episodeId: number, comment: ICreateCommentInput, user: ITokenPayload) => {
+export const createEpisodeComment = async (episodeId: number, comment: ICreateCommentInput, user: ITokenPayload): Promise<ICommentDTO> => {
   try {
     const newComment = await db.comment.create({
       data: {
@@ -108,6 +149,10 @@ export const createEpisodeComment = async (episodeId: number, comment: ICreateCo
         ...(comment.parentCommentId && { parent_comment: { connect: { id: comment.parentCommentId } } }),
         ...(comment.attachedImageUrl && { attached_image_url: comment.attachedImageUrl }),
       },
+      include: {
+        user: true,
+        parent_comment: true,
+      }
     });
 
     await UserService.createAction(user.id, "COMMENT", {
@@ -118,10 +163,21 @@ export const createEpisodeComment = async (episodeId: number, comment: ICreateCo
       }
     });
 
-    return newComment;
+    return {
+      id: newComment.id,
+      createdAt: newComment.createdAt,
+      body: {
+        text: newComment.body,
+        ...(newComment.attached_image_url && { image: normalizeImagePath(newComment.attached_image_url) }),
+      },
+      owner: {
+        id: newComment.user.id,
+        username: newComment.user.username,
+      }
+    };
   } catch (err) {
     console.log("🚀 ~ createEpisodeComment ~ err:", err);
-    return new InternalError();
+    throw new InternalError();
   }
 };
 
@@ -179,8 +235,8 @@ const normalizeComments = (comment: Comment): ICommentDTO => {
       ...(comment.attached_image_url && { image: normalizeImagePath(comment.attached_image_url) }),
     },
     owner: {
-      id: comment.user.id,
-      username: comment.user.username,
+      id: comment.user?.id,
+      username: comment.user?.username,
     },
     ...(comment.subcomments.length && {
       subcomments: comment.subcomments.map((subcomment) => normalizeComments(subcomment as Comment)),
