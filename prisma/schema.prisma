@@ -187,12 +187,12 @@ model ListItem {
   id              Int     @id @default(autoincrement())
   list            List    @relation(fields: [list_id], references: [id], onDelete: Cascade)
   list_id         Int
-  item_show       Show    @relation(fields: [item_show_id], references: [id])
-  item_show_id    Int
-  item_episode    Episode @relation(fields: [item_episode_id], references: [id])
-  item_episode_id Int
-  item_season     Season  @relation(fields: [item_season_id], references: [id])
-  item_season_id  Int
+  item_show       Show?    @relation(fields: [item_show_id], references: [id])
+  item_show_id    Int?
+  item_episode    Episode? @relation(fields: [item_episode_id], references: [id])
+  item_episode_id Int?
+  item_season     Season?  @relation(fields: [item_season_id], references: [id])
+  item_season_id  Int?
 
   @@map("list_items")
 }

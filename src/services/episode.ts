@@ -1,10 +1,10 @@
 import { Prisma } from "@prisma/client";
-import { ICommentDTO, IEpisodeDTO, IOtherEpisode } from "../types/episode";
+import { ICommentDTO, IEpisodeDTO, IEpisodePersonal, IOtherEpisode } from "../types/episode";
 import { db } from "../utils/db.server";
 import { InternalError, NotFound } from "../utils/errors";
 import { normalizeImagePath } from "../utils/base";
 import { ICreateCommentInput } from "../types/inputs";
-import { IAction, ITokenPayload } from "../types/base";
+import { ITokenPayload } from "../types/base";
 import * as UserService from "./user";
 
 const showWithFields = Prisma.validator<Prisma.ShowDefaultArgs>()({
@@ -39,8 +39,7 @@ type Show = Prisma.ShowGetPayload<typeof showWithFields>;
 
 type Comment = Prisma.CommentGetPayload<typeof comment>;
 
-export const getEpisodePage = async (episodeId: number) => {
-  console.log("🚀 ~ getEpisodePage ~ episodeId:", episodeId)
+export const getEpisodePage = async (episodeId: number, userId: number | null) => {
   try {
     const episode = await db.episode.findUnique({
       where: { id: episodeId },
@@ -74,12 +73,11 @@ export const getEpisodePage = async (episodeId: number) => {
       },
     });
 
-    console.log("🚀 ~ getEpisodePage ~ episode:", episode);
-
-
     if (!episode) {
       return new NotFound();
     }
+
+    const personal = userId ? await _getPersonalEpisodePage(episodeId, userId) : null;
 
     const episodeDTO: IEpisodeDTO = {
       id: episode.id,
@@ -100,6 +98,7 @@ export const getEpisodePage = async (episodeId: number) => {
       comments_count: 0,
       otherEpisodes: getOtherEpisodes(episode.show.episodes, episodeId),
       comments: episode.comments.map(comment => normalizeComments(comment as Comment)),
+      ...(personal && { personal }),
     };
 
     return episodeDTO;
@@ -206,10 +205,6 @@ const getOtherEpisodes = (episodes: Show["episodes"], currentEpisodeId: number):
   const startIndex = Math.max(0, currentEpisodeIndex - halfLength);
   const endIndex = startIndex + resultLength - 1;
 
-  console.log("🚀 ~ getOtherEpisodes ~ currentEpisodeIndex:", currentEpisodeIndex);
-  console.log("🚀 ~ getOtherEpisodes ~ startIndex:", startIndex);
-  console.log("🚀 ~ getOtherEpisodes ~ endIndex:", endIndex);
-
   const filteredList = episodesRev.slice(startIndex, endIndex + 1);
 
   const res: IOtherEpisode[] = [];
@@ -243,3 +238,44 @@ const normalizeComments = (comment: Comment): ICommentDTO => {
     }),
   };
 };
+
+const _getPersonalEpisodePage = async (episodeId: number, userId: number): Promise<IEpisodePersonal | null> => {
+  const personalEpisode = await db.watchedEpisode.findUnique({
+    where: {
+      user_id_episode_id: {
+        user_id: userId,
+        episode_id: episodeId,
+      }
+    }
+  })
+
+  if (!personalEpisode) {
+    return null
+  }
+
+  const ratedEpisode = await db.episodeRating.findUnique({
+    where: {
+      user_id_episode_id: {
+        user_id: userId,
+        episode_id: episodeId,
+      }
+    }
+  });
+
+  const favoriteEpisode = await db.favoriteEpisode.findUnique({
+    where: {
+      user_id_episode_id: {
+        user_id: userId,
+        episode_id: episodeId,
+      }
+    }
+  })
+
+  return {
+    watched: personalEpisode ? true : false,
+    watchedDate: personalEpisode.createdAt,
+    commentsOpen: personalEpisode ? true : false,
+    rating: ratedEpisode?.rating ?? "0",
+    favorite: favoriteEpisode ? true : false,
+  }
+}

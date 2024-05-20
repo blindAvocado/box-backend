@@ -39,8 +39,6 @@ export const getUserActions = async (userId: number, days: number = 30) => {
       },
     });
 
-    console.log("🚀 ~ getUserActions ~ actions:", actions);
-
     return actions;
   } catch (err) {
     console.log("🚀 ~ getUserActions ~ err:", err);
@@ -249,8 +247,6 @@ export const watch = async (userId: number, input: IWatchInput) => {
         },
       });
 
-      console.log("🚀 ~ watch ~ watch:", watch);
-
       await createAction(userId, "WATCH", {
         target: {
           type: "episode",
@@ -323,7 +319,6 @@ export const like = async (userId: number, input: ILikeInput) => {
         throw new InternalError();
     }
 
-    console.log("🚀 ~ like ~ res:", res);
     return res;
   } catch (err) {
     throw new InternalError();
@@ -401,12 +396,24 @@ export const getPage = async (userId: number) => {
         },
         followers: {
           include: {
-            follower: true,
+            follower: {
+              select: {
+                id: true,
+                username: true,
+                avatar_url: true,
+              },
+            },
           },
         },
         following: {
           include: {
-            following: true,
+            following: {
+              select: {
+                id: true,
+                username: true,
+                avatar_url: true,
+              },
+            },
           },
         },
       },
@@ -420,8 +427,20 @@ export const getPage = async (userId: number) => {
       id: user.id,
       username: user.username,
       ...(user.avatar_url && { avatar: normalizeImagePath(user.avatar_url) }),
-      followers: user.followers,
-      following: user.following,
+      followers: user.followers.map((follow) => {
+        return {
+          id: follow.follower.id,
+          username: follow.follower.username,
+          ...(follow.follower.avatar_url && { avatar: follow.follower.avatar_url }),
+        };
+      }),
+      following: user.following.map((follow) => {
+        return {
+          id: follow.following.id,
+          username: follow.following.username,
+          ...(follow.following.avatar_url && { avatar: follow.following.avatar_url }),
+        };
+      }),
     };
 
     const _watchedEpisodes = await db.watchedEpisode.findMany({
@@ -445,9 +464,6 @@ export const getPage = async (userId: number) => {
       watchedDays: 0,
       totalDays: 0,
     };
-
-    wasted.watchedEpisodes = _watchedEpisodes.length;
-    wasted.watchedHours = Math.ceil((_watchedEpisodes.length * 50) / 60); // TODO
 
     const watchedShows: Record<string, IShowUser[]> = {
       watching: [],
@@ -493,157 +509,168 @@ export const getPage = async (userId: number) => {
       wasted.totalHours += Math.floor((ws.show.episode_count * (ws.show.average_runtime ?? 40)) / 60);
     }
 
+    wasted.watchedEpisodes = _watchedEpisodes.length;
+    wasted.watchedHours = Math.ceil((_watchedEpisodes.length * 50) / 60);
     wasted.totalDays = Math.ceil(wasted.totalHours / 60);
     wasted.watchedDays = Math.floor(wasted.watchedHours / 60);
-
-    const _rawActivity = await getUserActions(userId);
 
     return {
       user: userDTO,
       watchedShows,
       wasted,
-      rawActivity: _rawActivity,
+      activity: await _getGroupedActivity(userId),
       stats: {
-        episodesThisYear: 325,
-        lists: 5,
-        following: 0,
-        followed: 0,
+        episodesThisYear: await _getWatchedEpisodesThisYear(userId),
+        lists: await _getListsCount(userId),
+        following: user.following.length,
+        followed: user.followers.length,
       },
-      ratings: {
-        "1": 0,
-        "2": 2,
-        "3": 9,
-        "4": 17,
-        "5": 5,
-        "4.5": 8,
-        "3.5": 26,
-        "2.5": 4,
-        "1.5": 0,
-        "0.5": 0,
-      },
-      heatmap: [
-        {
-          date: "2023-9-22",
-          count: 7,
-        },
-        {
-          date: "2023-9-23",
-          count: 2,
-        },
-        {
-          date: "2023-9-27",
-          count: 1,
-        },
-        {
-          date: "2023-9-29",
-          count: 4,
-        },
-      ],
-      following: [
-        {
-          id: 1,
-          username: "chantines",
-        },
-        {
-          id: 2,
-          username: "bond",
-          avatar:
-            "https://preview.redd.it/odd-question-was-bane-sexually-abused-by-cia-i-heard-that-v0-7qmjvvhyk7wc1.jpg?width=640&crop=smart&auto=webp&s=2192aff1d789f7207231556fb004876955b809c7",
-        },
-        {
-          id: 3,
-          username: "deadmaun",
-        },
-        {
-          id: 4,
-          username: "DrBeybutyan",
-        },
-        {
-          id: 5,
-          username: "magicflex",
-        },
-        {
-          id: 6,
-          username: "BringingItAllBackHome",
-        },
-      ],
-      activity: [
-        {
-          date: "2023-06-09T00:00:00.000Z",
-          watchedRuntime: 130,
-          items: [
-            {
-              event: "rated",
-              value: 4.5,
-              date: "2023-06-09T03:16:00.000Z",
-              target: {
-                type: "episode",
-                id: 2357,
-                season: 1,
-                episode: 1,
-                show: {
-                  id: 4378,
-                  name: "Stargate SG-1",
-                },
-              },
-            },
-            {
-              event: "watched",
-              date: "2023-06-09T03:46:00.000Z",
-              target: {
-                type: "episode",
-                id: 2358,
-                season: 1,
-                episode: 2,
-                show: {
-                  id: 4378,
-                  name: "Stargate SG-1",
-                },
-              },
-            },
-            {
-              event: "status",
-              value: "WATCHING",
-              date: "2023-06-09T03:58:00.000Z",
-              target: {
-                type: "show",
-                id: 4378,
-                name: "Stargate SG-1",
-              },
-            },
-            {
-              event: "status",
-              value: "GOING_TO",
-              date: "2023-06-09T07:26:00.000Z",
-              target: {
-                type: "show",
-                id: 4379,
-                name: "Stargate Atlantis",
-              },
-            },
-            {
-              event: "comment",
-              value: 73254,
-              date: "2023-06-09T07:55:00.000Z",
-              target: {
-                type: "episode",
-                id: 2358,
-                season: 1,
-                episode: 2,
-                show: {
-                  id: 4378,
-                  name: "Stargate SG-1",
-                },
-              },
-            },
-          ],
-        },
-      ],
+      ratings: await _getRatings(userId),
+      heatmap: await _getActionHeatmap(userId),
+      following: userDTO.following,
     };
   } catch (err) {
     console.log("🚀 ~ getPage ~ err:", err);
     throw new InternalError();
   }
+};
+
+const _getActionHeatmap = async (userId: number) => {
+  const actions = await db.action.findMany({
+    where: {
+      user_id: userId,
+    },
+    select: {
+      createdAt: true,
+    },
+  });
+
+  const heatmap = actions.reduce((acc, action) => {
+    const date = new Date(action.createdAt).toISOString().split("T")[0];
+    acc[date] = (acc[date] || 0) + 1;
+    return acc;
+  }, {} as { [key: string]: number });
+
+  const result = Object.entries(heatmap).map(([date, count]) => ({
+    date,
+    count,
+  }));
+
+  return result;
+};
+
+const _getWatchedEpisodesThisYear = async (userId: number) => {
+  const DAYS = 365;
+  const now = new Date();
+  const dateLimit = new Date(now.getTime() - DAYS * 24 * 60 * 60 * 1000); // 364 days
+
+  const episodesThisYear = await db.user.findUnique({
+    where: {
+      id: userId,
+    },
+    select: {
+      watched_episodes: {
+        where: {
+          createdAt: {
+            gte: dateLimit,
+          },
+        },
+      },
+    },
+  });
+
+  return episodesThisYear?.watched_episodes.length || 0;
+};
+
+const _getListsCount = async (userId: number) => {
+  const lists = await db.list.count({
+    where: {
+      user_id: userId,
+    },
+  });
+
+  return lists || 0;
+};
+
+const _getFollow = async (userId: number, mode: "follower" | "following") => {
+  if (mode === "follower") {
+    const followers = await db.user.findMany({
+      where: {
+        followers: {
+          some: {
+            followingId: userId,
+          },
+        },
+      },
+    });
+
+    return followers;
+  }
+
+  if (mode === "following") {
+    const following = await db.user.findMany({
+      where: {
+        following: {
+          some: {
+            followerId: userId,
+          },
+        },
+      },
+    });
+
+    return following;
+  }
+
+  return [];
+};
+
+const _getGroupedActivity = async (userId: number) => {
+  const _rawActivity = await getUserActions(userId);
+
+  const activityByDate = _rawActivity.reduce((acc, action) => {
+    const date = new Date(action.createdAt).toISOString().split("T")[0];
+    acc[date] = acc[date] || [];
+    acc[date].push(action);
+    return acc;
+  }, {} as { [key: string]: Action[] });
+
+  const result = Object.entries(activityByDate).map(([date, items]) => ({
+    date: `${date}T00:00:00.000Z`,
+    items,
+  }));
+
+  return result;
+};
+
+const _getRatings = async (userId: number) => {
+  const ratings = await db.episodeRating.groupBy({
+    by: ["rating"],
+    where: {
+      user_id: userId,
+    },
+    _count: {
+      _all: true,
+    },
+  });
+
+  const ratingMap = new Map(ratings.map((rating) => [rating.rating.toString(), rating._count._all]));
+  const result: Record<string, number> = {
+    "0.5": 0,
+    "1": 0,
+    "1.5": 0,
+    "2": 0,
+    "2.5": 0,
+    "3": 0,
+    "3.5": 0,
+    "4": 0,
+    "4.5": 0,
+    "5": 0,
+  };
+  for (const [key, value] of Object.entries(result)) {
+    result[key] = ratingMap.get(key) || 0;
+  }
+
+  return result;
 };
 
 const _likeShow = async (userId: number, input: ILikeInput) => {};

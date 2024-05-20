@@ -21,7 +21,7 @@ export const getPage = async (req: Request, res: Response) => {
   const user = req.user as ITokenPayload;
 
   try {
-    const show = await ShowService.getShowPage(parseInt(showId, 10), (user.id ?? null));
+    const show = await ShowService.getShowPage(parseInt(showId, 10), (user?.id ?? null));
 
     res.status(200).json({ show });
   } catch (err: any) {

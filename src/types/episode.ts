@@ -24,10 +24,10 @@ interface IRating {
   votes: number;
 }
 
-interface IEpisodePersonal {
+export interface IEpisodePersonal {
   watched: boolean;
-  watchedDate?: string;
-  rating: number;
+  watchedDate?: Date;
+  rating: string | Prisma.Decimal;
   favorite: boolean;
   commentsOpen: boolean;
   friends?: IUserRating[];

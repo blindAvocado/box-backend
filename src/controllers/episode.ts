@@ -7,8 +7,11 @@ import { ITokenPayload } from "../types/base";
 export const getPage = async (req: Request, res: Response) => {
   const episodeId: string = req.params.episode_id;
 
+  //@ts-ignore
+  const user = req.user as ITokenPayload;
+
   try {
-    const episode = await EpisodeService.getEpisodePage(parseInt(episodeId, 10));
+    const episode = await EpisodeService.getEpisodePage(parseInt(episodeId, 10), (user?.id ?? null));
 
     res.status(200).json(episode);
   } catch (err: any) {

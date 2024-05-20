@@ -5,6 +5,7 @@ import { ACCESS_TOKEN_EXPIRATION } from "../constants";
 import * as TokenService from "./token";
 import * as TokenUtils from "../utils/token";
 import { Forbidden, NotFound, Unauthorized } from "../utils/errors";
+import { IUserDTO } from "../types/user";
 
 interface IUserSignup extends IRequest {
   username: string;
@@ -29,7 +30,7 @@ export const signup = async (user: IUserSignup) => {
 
   const hashedPassword = await bcrypt.hash(password, 10);
 
-  const { id } = await db.user.create({
+  const userCreated = await db.user.create({
     data: {
       username,
       password_hash: hashedPassword,
@@ -41,14 +42,20 @@ export const signup = async (user: IUserSignup) => {
     },
   });
 
-  const payload = { id, username, hashedPassword };
+  const payload = { id: userCreated.id, username, hashedPassword };
 
   const accessToken = await TokenUtils.generateAccessToken(payload);
   const refreshToken = await TokenUtils.generateRefreshToken(payload);
 
-  await TokenService.createRefreshSession({ id, refreshToken, fingerprint });
+  await TokenService.createRefreshSession({ id: userCreated.id, refreshToken, fingerprint });
 
-  return { accessToken, refreshToken, accessTokenExpiration: ACCESS_TOKEN_EXPIRATION };
+  const userDTO: IUserDTO = {
+    id: userCreated.id,
+    gender: "OTHER",
+    username: userCreated.username
+  }
+
+  return { user: userDTO, accessToken, refreshToken, accessTokenExpiration: ACCESS_TOKEN_EXPIRATION };
 };
 
 export const login = async (user: IUserSignup) => {
@@ -56,6 +63,13 @@ export const login = async (user: IUserSignup) => {
 
   const userFound = await db.user.findUnique({ where: { username } });
   if (!userFound) throw new NotFound("User not found");
+  console.log("🚀 ~ login ~ userFound:", userFound);
+
+  const userDTO: IUserDTO = {
+    id: userFound.id,
+    gender: userFound.gender,
+    username: userFound.username
+  }
 
   const isPasswordValid = await bcrypt.compare(password, userFound.password_hash);
   if (!isPasswordValid) throw new Unauthorized("Invalid username or password");
@@ -66,7 +80,7 @@ export const login = async (user: IUserSignup) => {
   const refreshToken = await TokenUtils.generateRefreshToken(payload);
 
   await TokenService.createRefreshSession({ id: userFound.id, refreshToken, fingerprint });
-  return { accessToken, refreshToken, accessTokenExpiration: ACCESS_TOKEN_EXPIRATION };
+  return { user: userDTO, accessToken, refreshToken, accessTokenExpiration: ACCESS_TOKEN_EXPIRATION };
 };
 
 export const logout = async (refreshToken: string) => {
@@ -92,7 +106,7 @@ export const refresh = async ({ currentRefreshToken, fingerprint }: IRefresh) =>
 
   let payload: IPayload;
   try {
-    payload = await TokenService.verifyRefreshToken(currentRefreshToken) as IPayload;
+    payload = (await TokenService.verifyRefreshToken(currentRefreshToken)) as IPayload;
   } catch (error) {
     throw new Forbidden();
   }
