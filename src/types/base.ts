@@ -16,7 +16,7 @@ export interface ITokenPayload {
 
 export interface IAction {
   // event: IActionType;
-  value?: number | string;
+  value?: number | string | boolean;
   // date: string | Date;
   target: {
     type: "episode" | "show" | "user";

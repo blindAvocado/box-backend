@@ -1,6 +1,15 @@
 import { Prisma } from "@prisma/client";
 import { EAirStatus } from "../types/show";
-import type { IActor, IBestEpisode, IEpisode, ISeason, IShowDTO, TAirStatus } from "../types/show";
+import type {
+  IActor,
+  IBestEpisode,
+  IEpisode,
+  IEpisodePersonal,
+  ISeason,
+  IShowDTO,
+  IShowPersonal,
+  TAirStatus,
+} from "../types/show";
 import { db } from "../utils/db.server";
 import { InternalError, NotFound } from "../utils/errors";
 import { ArrayElement } from "../types/base";
@@ -22,7 +31,7 @@ const showWithFields = Prisma.validator<Prisma.ShowDefaultArgs>()({
 
 type Show = Prisma.ShowGetPayload<typeof showWithFields>;
 
-export const getShowPage = async (showId: number) => {
+export const getShowPage = async (showId: number, userId: number | null) => {
   try {
     const show = await db.show.findUnique({
       where: { id: showId },
@@ -52,6 +61,8 @@ export const getShowPage = async (showId: number) => {
     if (!show) {
       return new NotFound();
     }
+
+    const personal = userId ? await _getPersonalShow(showId, userId) : null;
 
     const showDTO: IShowDTO = {
       id: show.id,
@@ -84,6 +95,7 @@ export const getShowPage = async (showId: number) => {
       ...(show.actors && { actors: show.actors.map((actor) => normalizeActor(actor)) }),
       episodes: show.episodes.map((episode) => normalizeEpisode(episode)),
       seasons: show.seasons.map((season) => normalizeSeason(season)),
+      ...(personal && { personal }),
     };
 
     return showDTO;
@@ -92,9 +104,7 @@ export const getShowPage = async (showId: number) => {
   }
 };
 
-export const getAllShows = async () => {
-  
-}
+export const getAllShows = async () => {};
 
 export const changeStatus = async (showId: number, userId: number, statusInput: TStatusInput) => {
   console.log("🚀 ~ changeStatus ~ statusInput:", statusInput);
@@ -111,7 +121,7 @@ export const changeStatus = async (showId: number, userId: number, statusInput: 
         },
       },
     });
-    console.log("🚀 ~ changeStatus ~ watchedShow:", watchedShow)
+    console.log("🚀 ~ changeStatus ~ watchedShow:", watchedShow);
 
     if (!watchedShow && statusInput !== "NOT_WATCHING") {
       updatedRating = await db.watchedShow.create({
@@ -177,6 +187,63 @@ export const changeStatus = async (showId: number, userId: number, statusInput: 
   } catch (err) {
     return new InternalError();
   }
+};
+
+const _getPersonalShow = async (showId: number, userId: number): Promise<IShowPersonal> => {
+  const personalShow = await db.watchedShow.findUnique({
+    where: {
+      user_id_show_id: {
+        show_id: showId,
+        user_id: userId,
+      },
+    },
+  });
+
+  const ratedShow = await db.showRating.findUnique({
+    where: {
+      user_id_show_id: {
+        show_id: showId,
+        user_id: userId,
+      },
+    },
+  });
+
+  const watchedEpisodes = await db.watchedEpisode.findMany({
+    where: {
+      user_id: userId,
+      episode: {
+        show_id: showId,
+      },
+    },
+  });
+
+  const ratedEpisodes = await db.episodeRating.findMany({
+    where: {
+      user_id: userId,
+      episode: {
+        show_id: showId,
+      },
+    },
+  });
+
+  const combinedMap: Map<number, IEpisodePersonal> = new Map();
+
+  watchedEpisodes.forEach((episode) => {
+    combinedMap.set(episode.episode_id, { id: episode.episode_id, rating: "0", watched: true });
+  });
+
+  ratedEpisodes.forEach((episode) => {
+    combinedMap.set(episode.episode_id, {
+      ...(combinedMap.get(episode.episode_id) || { id: episode.episode_id, watched: false }),
+      rating: episode.rating,
+    });
+  });
+
+  return {
+    rating: ratedShow?.rating ?? "0",
+    status: personalShow?.status ?? "NOT_WATCHING",
+    episodes: Array.from(combinedMap).map(([name, value]) => value) ?? [],
+  };
 };
 
 const normalizeAirStatus = (status: EAirStatus): TAirStatus => {

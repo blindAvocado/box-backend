@@ -1,0 +1,2 @@
+-- AlterTable
+ALTER TABLE "episodes" ALTER COLUMN "summary" SET DATA TYPE VARCHAR(1024);

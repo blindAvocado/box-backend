@@ -17,8 +17,11 @@ export const getAllShows = async (req: Request, res: Response) => {
 export const getPage = async (req: Request, res: Response) => {
   const showId: string = req.params.show_id;
 
+  //@ts-ignore
+  const user = req.user as ITokenPayload;
+
   try {
-    const show = await ShowService.getShowPage(parseInt(showId, 10));
+    const show = await ShowService.getShowPage(parseInt(showId, 10), (user.id ?? null));
 
     res.status(200).json({ show });
   } catch (err: any) {

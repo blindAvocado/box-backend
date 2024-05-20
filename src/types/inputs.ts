@@ -15,4 +15,14 @@ export interface IWatchInput {
   value: boolean,
 }
 
+export interface ILikeInput {
+  type: "show" | "season" | "episode",
+  id: number,
+  value: boolean,
+}
+
+export interface IFollowInput {
+  id: number,
+}
+
 export type TStatusInput = "WATCHING" | "GOING_TO" | "STOPPED" | "NOT_WATCHING";

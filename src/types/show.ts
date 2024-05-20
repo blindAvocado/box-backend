@@ -14,6 +14,19 @@ export interface IShowDTO {
   seasons: ISeason[];
   episodes: IEpisode[];
   friends?: IUserRating[];
+  personal?: IShowPersonal;
+}
+
+export interface IShowPersonal {
+  rating: string | Prisma.Decimal;
+  status: "WATCHING" | "GOING_TO" | "STOPPED" | "WATCHED_ALL" | "NOT_WATCHING";
+  episodes: IEpisodePersonal[]
+}
+
+export interface IEpisodePersonal {
+  id: number,
+  watched: boolean,
+  rating: string | Prisma.Decimal
 }
 
 interface IProperties {
@@ -90,16 +103,26 @@ export interface IRating {
 }
 
 export interface IUserRating {
-  id: number,
-  username: string,
-  avatar?: string,
-  rating: number,
+  id: number;
+  username: string;
+  avatar?: string;
+  rating: number;
 }
 
-export type TAirStatus = "DEAD" | "AIRING" | "PAUSED"
+export type TAirStatus = "DEAD" | "AIRING" | "PAUSED";
 
 export enum EAirStatus {
   ON_AIR = "ON_AIR",
   ENDED = "ENDED",
-  PAUSED = "PAUSED"
+  PAUSED = "PAUSED",
+}
+
+export interface IShowUser {
+  id: number;
+  title: string;
+  airStatus: string;
+  rating: number;
+  watchedEpisodes: number;
+  totalEpisodes: number;
+  bannerPath?: string;
 }
