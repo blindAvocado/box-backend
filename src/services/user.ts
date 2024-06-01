@@ -1,10 +1,11 @@
-import { Prisma } from "@prisma/client";
-import { IAction, IActionType } from "../types/base";
+import type { IAction, IActionType } from "../types/base";
+import type { ICreateListInput, IFollowInput, ILikeInput, IRateInput, IWatchInput } from "../types/inputs";
+import type { IShowUser } from "../types/show";
+
+import { ListItem, ListType, Prisma } from "@prisma/client";
 import { db } from "../utils/db.server";
 import { InternalError, NotFound } from "../utils/errors";
-import { IFollowInput, ILikeInput, IRateInput, IWatchInput } from "../types/inputs";
 import { normalizeImagePath } from "../utils/base";
-import { IShowUser } from "../types/show";
 
 const action = Prisma.validator<Prisma.ActionDefaultArgs>()({});
 
@@ -38,6 +39,62 @@ export const getUserActions = async (userId: number, days: number = 30) => {
         },
       },
     });
+
+    for (const action of actions) {
+      const data = action.action_data as object as IAction;
+      if (data?.target.type === "episode") {
+        const episode = await db.episode.findUnique({
+          where: {
+            id: data.target.id,
+          },
+          include: {
+            show: true,
+          },
+        });
+
+        if (episode) {
+          data.target.customData = {
+            show: {
+              id: episode.show.id,
+              title: episode.show.title,
+            },
+          };
+        }
+      }
+
+      if (data?.target.type === "show") {
+        const show = await db.show.findUnique({
+          where: {
+            id: data.target.id,
+          },
+        });
+
+        if (show) {
+          data.target.customData = {
+            show: {
+              title: show.title,
+            },
+          };
+        }
+      }
+
+      if (data?.target.type === "user") {
+        const user = await db.user.findUnique({
+          where: {
+            id: data.target.id,
+          },
+        });
+
+        if (user) {
+          data.target.customData = {
+            user: {
+              id: user.id,
+              name: user.username,
+            },
+          };
+        }
+      }
+    }
 
     return actions;
   } catch (err) {
@@ -535,6 +592,104 @@ export const getPage = async (userId: number) => {
   }
 };
 
+export const createList = async (userId: number, input: ICreateListInput) => {
+  console.log("🚀 ~ createList ~ userId:", userId);
+  try {
+    const tagsDTO = (await _getTags(userId, input.tags)) ?? [];
+    // console.log("🚀 ~ createList ~ tagsDTO:", tagsDTO);
+
+    const listType = () => {
+      switch (input.type) {
+        case "episode":
+          return ListType.EPISODE;
+        case "season":
+          return ListType.SEASON;
+        case "show":
+          return ListType.SHOW;
+      }
+    };
+
+    const list = await db.list.create({
+      data: {
+        user: { connect: { id: userId } },
+        title: input.title,
+        type: listType(),
+        ...(input.summary && { summary: input.summary }),
+      },
+      select: {
+        id: true,
+        title: true,
+        summary: true,
+        type: true,
+        is_ranked: true,
+      }
+    });
+
+    const listItems = await db.listItem.createManyAndReturn({
+      data: input.items.map((itemId) => {
+        return {
+          list_id: list.id,
+          ...(input.type === "episode" && { item_episode_id: itemId }),
+          ...(input.type === "season" && { item_season_id: itemId }),
+          ...(input.type === "show" && { item_show_id: itemId }),
+        };
+      }),
+      select: {
+        ...(input.type === "episode" && {
+          item_episode: {
+            select: {
+              id: true,
+              show_id: true,
+              title: true,
+              thumb_url: true,
+              number: true,
+              season_number: true,
+            },
+          },
+        }),
+        ...(input.type === "season" && { item_season: {
+          select: {
+            id: true,
+            show_id: true,
+            poster_url: true,
+            number: true,
+          }
+        } }),
+        ...(input.type === "show" && { item_show: {
+          select: {
+            id: true,
+            poster_url: true,
+            title: true,
+            date_started: true,
+            date_ended: true,
+          }
+        } }),
+      },
+    });
+
+    const listTags = await db.listTag.createManyAndReturn({
+      data: tagsDTO.map((tag) => {
+        return {
+          list_id: list.id,
+          tag_id: tag.id, 
+        };
+      }),
+      select: {
+        tag: true,
+      }
+    })
+
+    return { ...list, items: listItems, tags: listTags };
+  } catch (err) {
+    console.log("🚀 ~ createList ~ err:", err);
+    return new InternalError();
+  }
+};
+
+export const updateList = async (userId: number) => {};
+
+export const deleteList = async (userId: number) => {};
+
 const _getActionHeatmap = async (userId: number) => {
   const actions = await db.action.findMany({
     where: {
@@ -671,6 +826,44 @@ const _getRatings = async (userId: number) => {
   }
 
   return result;
+};
+
+const _getTags = async (userId: number, tags: ICreateListInput["tags"]) => {
+  try {
+    const resTags = [];
+
+    if (!tags?.length) {
+      return [];
+    }
+
+    for (const tag of tags) {
+      const foundTag = await db.tag.findFirst({
+        where: {
+          user_id: userId,
+          name: tag,
+        },
+      });
+
+      if (foundTag) {
+        resTags.push(foundTag);
+        continue;
+      }
+
+      const newTag = await db.tag.create({
+        data: {
+          user: { connect: { id: userId } },
+          name: tag,
+        },
+      });
+
+      if (newTag) resTags.push(newTag);
+    }
+
+    return resTags;
+  } catch (err) {
+    console.log("🚀 ~ _getTags ~ err:", err);
+    throw new InternalError();
+  }
 };
 
 const _likeShow = async (userId: number, input: ILikeInput) => {};

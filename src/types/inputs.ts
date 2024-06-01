@@ -25,4 +25,12 @@ export interface IFollowInput {
   id: number,
 }
 
+export interface ICreateListInput {
+  type: "show" | "season" | "episode",
+  title: string,
+  summary?: string,
+  tags?: string[],
+  items: number[],
+}
+
 export type TStatusInput = "WATCHING" | "GOING_TO" | "STOPPED" | "NOT_WATCHING";

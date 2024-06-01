@@ -61,7 +61,37 @@ export const getEpisodePage = async (episodeId: number, userId: number | null) =
                     subcomments: {
                       include: {
                         user: true,
-                        subcomments: true,
+                        subcomments: {
+                          include: {
+                            user: true,
+                            subcomments: {
+                              include: {
+                                user: true,
+                                subcomments: {
+                                  include: {
+                                    user: true,
+                                    subcomments: {
+                                      include: {
+                                        user: true,
+                                        subcomments: {
+                                          include: {
+                                            user: true,
+                                            subcomments: {
+                                              include: {
+                                                user: true,
+                                                subcomments: true,
+                                              }
+                                            }
+                                          }
+                                        },
+                                      }
+                                    }
+                                  }
+                                },
+                              }
+                            }
+                          }
+                        },
                       }
                     }
                   }
@@ -97,7 +127,7 @@ export const getEpisodePage = async (episodeId: number, userId: number | null) =
       watched: 0,
       comments_count: 0,
       otherEpisodes: getOtherEpisodes(episode.show.episodes, episodeId),
-      comments: episode.comments.map(comment => normalizeComments(comment as Comment)),
+      comments: episode.comments.map(comment => _normalizeComments(comment as Comment)),
       ...(personal && { personal }),
     };
 
@@ -129,7 +159,7 @@ export const getEpisodeComments = async (episodeId: number) => {
     const commentsDTO: ICommentDTO[] = [];
 
     for (const comment of episode.comments) {
-      commentsDTO.push(normalizeComments(comment as Comment));
+      commentsDTO.push(_normalizeComments(comment as Comment));
     }
 
     return commentsDTO;
@@ -221,7 +251,7 @@ const getOtherEpisodes = (episodes: Show["episodes"], currentEpisodeId: number):
   return res;
 };
 
-const normalizeComments = (comment: Comment): ICommentDTO => {
+const _normalizeComments = (comment: Comment): ICommentDTO => {
   return {
     id: comment.id,
     createdAt: comment.createdAt,
@@ -234,7 +264,7 @@ const normalizeComments = (comment: Comment): ICommentDTO => {
       username: comment.user?.username,
     },
     ...(comment.subcomments.length && {
-      subcomments: comment.subcomments.map((subcomment) => normalizeComments(subcomment as Comment)),
+      subcomments: comment.subcomments.map((subcomment) => _normalizeComments(subcomment as Comment)),
     }),
   };
 };

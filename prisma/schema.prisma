@@ -45,13 +45,13 @@ model User {
 }
 
 model RefreshSession {
-  id                Int               @id @default(autoincrement())
-  user              User              @relation(fields: [user_id], references: [id], onDelete: Cascade)
-  user_id           Int
-  refresh_token     String            @unique @db.VarChar(512)
-  fingerprint       String            @db.VarChar(32)
-  createdAt         DateTime          @default(now())
-  updatedAt         DateTime          @updatedAt
+  id            Int      @id @default(autoincrement())
+  user          User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  user_id       Int
+  refresh_token String   @unique @db.VarChar(512)
+  fingerprint   String   @db.VarChar(32)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
   @@map("refresh_sessions")
 }
@@ -153,18 +153,18 @@ model Episode {
 }
 
 model Comment {
-  id                 Int     @id @default(autoincrement())
-  user               User    @relation(fields: [user_id], references: [id])
+  id                 Int       @id @default(autoincrement())
+  user               User      @relation(fields: [user_id], references: [id])
   user_id            Int
-  episode            Episode @relation(fields: [episode_id], references: [id])
+  episode            Episode   @relation(fields: [episode_id], references: [id])
   episode_id         Int
-  parent_comment     Comment? @relation("Subcomments", fields: [parent_comment_id], references: [id], onDelete: Cascade)
+  parent_comment     Comment?  @relation("Subcomments", fields: [parent_comment_id], references: [id], onDelete: Cascade)
   parent_comment_id  Int?
-  body               String  @db.VarChar(2048)
-  attached_image_url String?  @db.VarChar(128)
-  createdAt          DateTime          @default(now())
-  updatedAt          DateTime          @updatedAt
-  subcomments        Comment[]  @relation("Subcomments")
+  body               String    @db.VarChar(2048)
+  attached_image_url String?   @db.VarChar(128)
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+  subcomments        Comment[] @relation("Subcomments")
 
   @@map("comments")
 }
@@ -174,7 +174,7 @@ model List {
   user      User       @relation(fields: [user_id], references: [id])
   user_id   Int
   title     String     @db.VarChar(128)
-  summary   String     @db.VarChar(2048)
+  summary   String?    @db.VarChar(2048)
   type      ListType   @default(SHOW)
   is_ranked Boolean    @default(false)
   items     ListItem[]
@@ -184,9 +184,10 @@ model List {
 }
 
 model ListItem {
-  id              Int     @id @default(autoincrement())
-  list            List    @relation(fields: [list_id], references: [id], onDelete: Cascade)
+  id              Int      @id @default(autoincrement())
+  list            List     @relation(fields: [list_id], references: [id], onDelete: Cascade)
   list_id         Int
+  position        Int?     @default(0)
   item_show       Show?    @relation(fields: [item_show_id], references: [id])
   item_show_id    Int?
   item_episode    Episode? @relation(fields: [item_episode_id], references: [id])
@@ -315,7 +316,7 @@ model Tag {
 model ListTag {
   list_id Int
   tag_id  Int
-  list    List @relation("ListTags", fields: [list_id], references: [id])
+  list    List @relation("ListTags", fields: [list_id], references: [id], onDelete: Cascade)
   tag     Tag  @relation("ListTags", fields: [tag_id], references: [id])
 
   @@id([list_id, tag_id])
@@ -382,7 +383,6 @@ model Permission {
   show_id      Int
 
   @@id([moderator_id, show_id])
-
   @@map("permissions")
 }
 
